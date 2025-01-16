@@ -1,1 +1,58 @@
+class Player:
+    def __init__(self, name, preferences):
+        self.name = name
+        self.preferences = preferences  # 球団の好みリスト
+        self.current_team = None
+        self.drafted = False  # 選手がドラフト済みかどうか
 
+class Team:
+    def __init__(self, name):
+        self.name = name
+        self.current_player = None  # 現在所属する選手
+        self.preference_list = []  # チームが好む選手のリスト
+
+def simulate_draft(players, teams):
+    # ステップ1: 各球団の指名をカウントし、選手の優先順位を決定
+    vote_count = {player.name: 0 for player in players}
+    for team in teams:
+        if team.preference_list:
+            vote_count[team.preference_list[0]] += 1
+    sorted_players = sorted(players, key=lambda p: vote_count[p.name], reverse=True)
+
+    # ステップ2: 優先順位の高い選手から順に指名を開始
+    while sorted_players:
+        player = sorted_players.pop(0)  # 最も優先順位の高い選手
+        while not player.drafted:
+            for preferred_team_name in player.preferences:
+                preferred_team = next((team for team in teams if team.name == preferred_team_name), None)
+                if not preferred_team:
+                    continue
+                
+                # 指名の承諾条件
+                if not preferred_team.current_player or \
+                        preferred_team.preference_list.index(player.name) < preferred_team.preference_list.index(preferred_team.current_player.name):
+                    # 承諾する場合
+                    if preferred_team.current_player:
+                        # 現在の選手に指名権を移す
+                        current_player = preferred_team.current_player
+                        current_player.current_team = None
+                        sorted_players.append(current_player)  # 未指名リストに戻す
+                    preferred_team.current_player = player
+                    player.current_team = preferred_team
+                    player.drafted = True
+                    print(f"{player.name} joins {preferred_team.name}")
+                    break
+                else:
+                    # 拒否された場合、次の球団を指名
+                    continue
+            
+            # 全球団に拒否された場合
+            if not player.drafted:
+                print(f"{player.name} remains with {player.current_team.name if player.current_team else 'no team'}")
+                player.drafted = True
+
+        # サイクルの解消
+        for team in teams:
+            if team.current_player:
+                print(f"{team.current_player.name} is finalized with {team.name}")
+        sorted_players = [p for p in players if not p.drafted]
