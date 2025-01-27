@@ -1,58 +1,108 @@
+import random
+
+def simulate_draft(players, teams):
+    # ステップ1: 各球団の指名をカウントし、選手の優先順位を決定
+    vote_count = {player.name: 0 for player in players}
+    for team in teams:
+        team.current_player = None  # 初期状態で選手が割り当てられていない状態にする
+        if team.preference_list:
+            vote_count[team.preference_list[0]] += 1
+
+    # 最終的な得票数を出力
+    print("最終的な得票数:")
+    for player_name, votes in vote_count.items():
+        print(f"{player_name}: {votes} votes")
+    sorted_players = sorted(players, key=lambda p: vote_count[p.name], reverse=True)
+
+    assigned_players = set()  # 移籍済み選手を記録
+    assigned_teams = set()  # 移籍済み選手を記録
+    next_player = sorted_players[0]
+    # 最大25回ループする（無限ループを防ぐため。途中で終わる可能性もあり）
+    for _ in range(25):
+        if next_player.name in assigned_players:
+            print(f"{next_player.name}はすでに移籍が完了しています。スキップします。")
+            next_player = sorted_players[0]
+            continue
+        print(f"指名中: {next_player.name}")
+
+        # next_playerの選好リストを取得
+        preferences = next_player.preferences
+        first_preference_team = None
+        valid_preferences = [team_name for team_name in preferences if team_name not in {team for _, team in assigned_teams}]
+
+        # 選好リストのチームを順番に試す
+        for team_name in valid_preferences:
+            # 該当チームを取得
+            first_preference_team = next((team for team in teams if team.name == team_name), None)
+
+            if first_preference_team and next_player.name in first_preference_team.preference_list:
+                # first_preference_teamのcurrent_playerをnext_playerに置き換え
+                print(f"{first_preference_team.name}のcurrent_playerを{next_player.name}に置き換えます。")
+                first_preference_team.current_player = next_player
+                print(f"確認: {first_preference_team.name}のcurrent_playerは現在{first_preference_team.current_player.name}です。")
+                assigned_players.add(next_player.name)  # 移籍済みとして記録
+                assigned_teams.add((next_player.name, first_preference_team.name))  # 移籍したチームを記録
+
+                    # sorted_playersから該当する選手を除外
+                sorted_players = [player for player in sorted_players if player.name != next_player.name]
+                # print(f"{next_player.name}はsorted_playersから除外されました。")
+                break  # チームが見つかったのでループを抜ける
+            else:
+                # 条件に該当しない場合
+                if first_preference_team:
+                    print(f"{first_preference_team.name}から{next_player.name}は拒否されました。")
+        else:
+            # 全ての選好リストを試しても見つからなかった場合
+            print(f"{next_player.name}はどの選好チームにも存在しません。スキップします。")
+            continue  # 次の選手へ
+
+        # next_playerを更新
+        next_player_name = first_preference_team.name.replace("Team", "Player")
+        next_player = next((player for player in players if player.name == next_player_name), None)
+
+        # next_playerが見つからなければループ終了
+        if not next_player:
+            print("次の選手が見つかりません。ループを終了します。")
+            break
+
+
 class Player:
     def __init__(self, name, preferences):
         self.name = name
         self.preferences = preferences  # 球団の好みリスト
         self.current_team = None
         self.drafted = False  # 選手がドラフト済みかどうか
+    def __str__(self):
+        return self.name  # プレイヤー名を文字列として返す
 
 class Team:
-    def __init__(self, name):
+    def __init__(self, name, initial_player):
         self.name = name
-        self.current_player = None  # 現在所属する選手
+        self.current_player = initial_player  # 現在所属する選手
         self.preference_list = []  # チームが好む選手のリスト
+    def __str__(self):
+        return self.name  # チーム名を文字列として返す
 
-def simulate_draft(players, teams):
-    # ステップ1: 各球団の指名をカウントし、選手の優先順位を決定
-    vote_count = {player.name: 0 for player in players}
-    for team in teams:
-        if team.preference_list:
-            vote_count[team.preference_list[0]] += 1
-    sorted_players = sorted(players, key=lambda p: vote_count[p.name], reverse=True)
+# プレイヤーを先に作成
+players = [Player(f"Player{i}", [f"Team{n}" for n in random.sample(range(1, 13), 12)]) for i in range(1, 13)]
 
-    # ステップ2: 優先順位の高い選手から順に指名を開始
-    while sorted_players:
-        player = sorted_players.pop(0)  # 最も優先順位の高い選手
-        while not player.drafted:
-            for preferred_team_name in player.preferences:
-                preferred_team = next((team for team in teams if team.name == preferred_team_name), None)
-                if not preferred_team:
-                    continue
-                
-                # 指名の承諾条件
-                if not preferred_team.current_player or \
-                        preferred_team.preference_list.index(player.name) < preferred_team.preference_list.index(preferred_team.current_player.name):
-                    # 承諾する場合
-                    if preferred_team.current_player:
-                        # 現在の選手に指名権を移す
-                        current_player = preferred_team.current_player
-                        current_player.current_team = None
-                        sorted_players.append(current_player)  # 未指名リストに戻す
-                    preferred_team.current_player = player
-                    player.current_team = preferred_team
-                    player.drafted = True
-                    print(f"{player.name} joins {preferred_team.name}")
-                    break
-                else:
-                    # 拒否された場合、次の球団を指名
-                    continue
-            
-            # 全球団に拒否された場合
-            if not player.drafted:
-                print(f"{player.name} remains with {player.current_team.name if player.current_team else 'no team'}")
-                player.drafted = True
+# チームを作成し、それぞれに初期プレイヤーを割り当てる
+teams = [Team(f"Team{i}", players[i - 1]) for i in range(1, 13)]
 
-        # サイクルの解消
-        for team in teams:
-            if team.current_player:
-                print(f"{team.current_player.name} is finalized with {team.name}")
-        sorted_players = [p for p in players if not p.drafted]
+# チームごとの選好順リストをランダムに生成
+for team in teams:
+    # 全選手をランダムに並べ替え
+    random_list = random.sample(players, len(players))
+
+    # 各チームの初期所有選手が出るまでのリストを生成
+    team.preference_list = [player.name for player in random_list]
+    if team.current_player.name in team.preference_list:
+        cutoff_index = team.preference_list.index(team.current_player.name) + 1
+        team.preference_list = team.preference_list[:cutoff_index]
+
+for player in players:
+    print(f"{player.name}: {player.preferences}")
+for team in teams:
+    print(f"{team.name}: {team.preference_list}")
+
+simulate_draft(players, teams)
